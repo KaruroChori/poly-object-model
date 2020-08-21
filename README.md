@@ -1,5 +1,15 @@
 # Introduction
-TODO
+This repository is part of SSMILE (Stochastic Structured Models Integrating Layered Entities) simulator. It is used to structure the physical objects to be simulated and to represent them in a way which is space efficient. At the moment this library is under active development but this is the list of features which it is expected to ship with:
+- Support for graph rewriting graphs as a way to represent committed steps to evolve the topology.
+- Support for node abstraction, where nodes are derived as subsets of other graphs.
+- Support for multiple relations based on the same domain set.
+- Automatically collapse equivalent objects in equivalence classes to limit the memory needed to represent them.
+- Support for unique objects which cannot be collapsed into equivalence classes.
+- Support for serialization, allowing you to load and store everything in json files.
+- Support for visualization, mainly through the generation of dot files.
+- Object sampling in a class.
+
+Basically with this library you are able to generate arbitrary graphs, to collapse together graphs which are equivalent, having multiple orthogonal relations defined over the same domain set, so same nodes, but multiple sets of arches. You can manipulate, create and destroy graphs in the data structure by applying a graph rewrite graph to it, basially a program represented as a graph.
 
 # Directory structure
 Directories are organized in the following structure:
