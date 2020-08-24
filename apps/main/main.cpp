@@ -12,5 +12,8 @@ int main(){
     smile::utils::edit_graph<uint64_t,uint64_t> banana;
     //banana.add_node({smile::utils::edit_node<uint64_t>::labels::ABSOLUTE,(void*)123});
     std::cout<<banana;
+    banana.compile();
+    banana.apply_on(hello);
+    //hello*=banana;
     return 0;
 }

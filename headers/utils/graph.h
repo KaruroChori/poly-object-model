@@ -59,6 +59,7 @@ struct graph{
     protected:
 
         virtual void*                           add_node(const typename node::value_t& v);
+        virtual void*                           tmp_node(const typename node::value_t& v);
         virtual void                            rem_node(void* n);
         virtual void                            set_node(void* n, const typename node::value_t& v);
         virtual typename node::value_t&         get_node(void* n);
@@ -141,6 +142,14 @@ struct graph{
         inline friend std::ostream& operator<<(std::ostream& out, const graph& g){json tmp;to_json(tmp,g);out<<tmp;return out;}
 
 };
+
+template<typename N, typename A>
+void* graph<N,A>::tmp_node(const typename node::value_t& v){
+    if(!editable)throw StringException("Not editable graph");
+    node* tmp=new node();
+    tmp->value=v;
+    return tmp;
+}
 
 template<typename N, typename A>
 void* graph<N,A>::add_node(const typename node::value_t& v){

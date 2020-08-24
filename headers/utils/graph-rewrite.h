@@ -57,7 +57,7 @@ typename T::labels from_string_enum(const std::string& str){
 template<typename T>
 struct edit_node{
     enum class labels{
-        NOP, NEW, ABSOLUTE, LOCAL, VAR
+        NOP, NEW, ABSOLUTE, LOCAL, VAR, VAR_CON
     }type;
 
     static bool is_true_node(labels op){return op==decltype(op)::ABSOLUTE or op==decltype(op)::LOCAL or op==decltype(op)::NEW;}
@@ -67,16 +67,18 @@ struct edit_node{
         void*               new_node;
         items_t             local;
         T                   var;
+        void*               var_con;
     };
 
     constexpr inline static const char* strings[] = {
         "nop",
         "new",
         "abs","local",
-        "var"
+        "var",
+        "var_con"
     };
 
-    constexpr inline static uint n = 5;
+    constexpr inline static uint n = 6;
 
     friend void from_json(const nlohmann::json& config, edit_node& g){
         {
@@ -91,6 +93,8 @@ struct edit_node{
                  if(g.type==labels::ABSOLUTE)g.absolute=(void*)(uint64_t)(*it);
             else if(g.type==labels::LOCAL)g.local=(*it);
             else if(g.type==labels::VAR)from_json(*it,g.var);
+            else if(g.type==labels::ABSOLUTE)g.var_con=nullptr;
+
         }
     }
 
@@ -100,6 +104,7 @@ struct edit_node{
         else if(g.type==labels::LOCAL)config["value"]=g.local;
         else if(g.type==labels::VAR)to_json(config["value"],g.var);
         else if(g.type==labels::NEW)config["value"]=nullptr;
+        else if(g.type==labels::VAR_CON)config["value"]=nullptr;
     } 
 };
 
@@ -187,59 +192,94 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
     }
 
     template<typename T>
-    friend T& operator*=(T& target, std::pair<const edit_graph&,const std::function<void*(items_t)>&> eg){
-        if(eg.first.editable)throw StringException("Graph must be compiled");
+    inline T& apply_on(T& target, const std::function<void*(items_t)>& pi) const{
+        auto eg=*this;
+
+        set<typename T::node*> tmp_nodes;
+
+        if(eg.editable)throw StringException("Graph must be compiled");
+
+        auto w_node = [&](node* ptr)->typename T::node*{
+            if(ptr->value.type==enode::labels::ABSOLUTE)return (typename T::node*)ptr->value.absolute;
+            else if(ptr->value.type==enode::labels::LOCAL)return (typename T::node*)target.resolve_node(ptr->value.local);
+            else{
+                throw StringException("Wrong addressing method");
+            }
+        };
 
         //Generate the new nodes which are not there yet.
-        for(auto i:eg.first.nodes){
+        for(auto i:eg.nodes){
             if(i->value.type==enode::labels::NEW){
-                i->value.new_node=(void*)target.add_node_ptr();
+                i->value.new_node=(void*)target.add_node({});
             }
         }
 
-        for(auto j:eg.first.pieces[1]){
+        for(auto j:eg.pieces[1]){
             if(std::get<2>(j)->value.type==earch::labels::LOAD_ST){
-
+                std::get<1>(j)->value.var=std::max(w_node(std::get<0>(j))->value,std::get<1>(j)->value.var);
             }
             else throw StringException("Graph state is broken.");
         }
 
-        for(auto j:eg.first.pieces[2]){
+        for(auto j:eg.pieces[2]){
             if(std::get<2>(j)->value.type==earch::labels::STORE_ST){
-
+                w_node(std::get<1>(j))->value=std::get<0>(j)->value.var;
             }
             else if(std::get<2>(j)->value.type==earch::labels::ARCH_SET){
-                target.set_arch(std::get<0>(j),std::get<1>(j),std::get<2>(j)->value.value);
+                if(std::get<2>(j)->value.value.has_value())target.set_arch(w_node(std::get<0>(j)),w_node(std::get<1>(j)),std::get<2>(j)->value.value.value());
+                else target.set_arch(w_node(std::get<0>(j)),w_node(std::get<1>(j)),{});
             }
             else if(std::get<2>(j)->value.type==earch::labels::ARCH_DEL){
-                target.rem_arch(std::get<0>(j),std::get<1>(j));
+                target.rem_arch(w_node(std::get<0>(j)),w_node(std::get<1>(j)));
             }
             else throw StringException("Graph state is broken.");            
         }
-        for(auto j:eg.first.pieces[3]){
+        for(auto j:eg.pieces[3]){
             if(std::get<2>(j)->value.type==earch::labels::LOAD_CON){
-
+                auto t=target.tmp_node({});
+                std::get<1>(j)->value.var_con=t;
+                tmp_nodes.insert((typename T::node*)t);
+                //Copy connectivity here.
+                target.cpy_conn(w_node(std::get<0>(j)),t);     
             }
             else throw StringException("Graph state is broken.");
         }
 
-        for(auto j:eg.first.pieces[4]){
+        for(auto j:eg.pieces[4]){
             if(std::get<2>(j)->value.type==earch::labels::STORE_CON){
-
+                //Copy connectivity from here.
+                target.cpy_conn(std::get<0>(j)->value.var_con,w_node(std::get<1>(j)));
             }
-            else throw StringException("Graph state is broken.");
+            else{
+                for(auto i:tmp_nodes)delete i;
+                throw StringException("Graph state is broken.");
+            }
         }
 
-        for(auto j:eg.first.pieces[5]){
+        //Clean up temporary nodes :)
+        for(auto i:tmp_nodes)delete i;
+
+        for(auto j:eg.pieces[5]){
             if(std::get<2>(j)->value.type==earch::labels::FORGET){
-                target.rem_node(std::get<0>(j));
+                target.rem_node(w_node(std::get<0>(j)));
             }
             else if(std::get<2>(j)->value.type==earch::labels::DELETE){
-                target.forget(std::get<0>(j));
+                target.forget(w_node(std::get<0>(j)));
             }
             else throw StringException("Graph state is broken.");              
         }
+
+        return target;
     }
+
+
+    template<typename T>
+    inline T& apply_on(T& target) const{return apply_on(target,[&](items_t i)->void*{return target.resolve_node(i);});}
+
+    /*
+    template<typename T>
+    friend T& operator*=(T& target, std::pair<const edit_graph&,const std::function<void*(items_t)>&> eg){return target;}
+
 
     template<typename T>
     inline friend T& operator*=(T& target, const edit_graph& eg){target*={eg,[&](items_t i)->void*{return target.resolve_node(i);}};}
@@ -249,7 +289,7 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
 
     template<typename T>
     inline friend T operator*(const T& target, const edit_graph& eg){auto ntarget=target;return ntarget*=eg;}
-    
+    */
     protected:
         array<set<std::tuple<node*,node*,arch*>>,LAYERS_N> pieces;
 
@@ -258,9 +298,10 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
             return false;
         }
         static bool is_legal(typename earch::labels mnemonic, typename enode::labels op1, typename enode::labels op2){
-            if((mnemonic == decltype(mnemonic)::LOAD_CON or mnemonic == decltype(mnemonic)::LOAD_ST) &&
-                enode::is_true_node(op1) && op2==decltype(op2)::VAR)return true;
-            else if((mnemonic == decltype(mnemonic)::STORE_CON or mnemonic == decltype(mnemonic)::STORE_ST) && op2==decltype(op1)::VAR && enode::is_true_node(op2))return true;
+            if(mnemonic == decltype(mnemonic)::LOAD_CON  &&  enode::is_true_node(op1) && op2==decltype(op2)::VAR_CON)return true;
+            else if(mnemonic == decltype(mnemonic)::LOAD_ST  &&  enode::is_true_node(op1) && op2==decltype(op2)::VAR)return true;
+            else if(mnemonic == decltype(mnemonic)::STORE_CON && op2==decltype(op1)::VAR_CON && enode::is_true_node(op2))return true;
+            else if(mnemonic == decltype(mnemonic)::STORE_ST && op2==decltype(op1)::VAR && enode::is_true_node(op2))return true;
             else if((mnemonic == decltype(mnemonic)::ARCH_DEL or mnemonic == decltype(mnemonic)::ARCH_SET) && enode::is_true_node(op1) && enode::is_true_node(op2))return true;
             return false;
         }
