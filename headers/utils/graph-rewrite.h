@@ -66,7 +66,7 @@ struct edit_node{
         void*               absolute;
         void*               new_node;
         items_t             local;
-        T                   var;
+        T*                  var;
         void*               var_con;
     };
 
@@ -92,7 +92,7 @@ struct edit_node{
 
                  if(g.type==labels::ABSOLUTE)g.absolute=(void*)(uint64_t)(*it);
             else if(g.type==labels::LOCAL)g.local=(*it);
-            else if(g.type==labels::VAR)from_json(*it,g.var);
+            else if(g.type==labels::VAR){g.var=new T();from_json(*it,*(g.var));}
             else if(g.type==labels::ABSOLUTE)g.var_con=nullptr;
 
         }
@@ -102,10 +102,15 @@ struct edit_node{
         config["type"]=to_string_enum<edit_node>(g.type);
              if(g.type==labels::ABSOLUTE)config["value"]=(uint64_t)g.absolute;
         else if(g.type==labels::LOCAL)config["value"]=g.local;
-        else if(g.type==labels::VAR)to_json(config["value"],g.var);
+        else if(g.type==labels::VAR)to_json(config["value"],*(g.var));
         else if(g.type==labels::NEW)config["value"]=nullptr;
         else if(g.type==labels::VAR_CON)config["value"]=nullptr;
     } 
+
+    ~edit_node(){if(type==labels::VAR)delete var;}
+    edit_node(){type=labels::NOP;}
+    edit_node(const edit_node& cp){type=cp.type;if(type==labels::VAR)var=new T(*(cp.var));else absolute=cp.absolute;}
+    edit_node& operator=(const edit_node& cp){type=cp.type;if(type==labels::VAR)var=new T(*(cp.var));else absolute=cp.absolute;return *this;}
 };
 
 template<typename T>
@@ -157,6 +162,11 @@ struct edit_arch{
         config["type"]=to_string_enum<edit_arch>(g.type);
         if(g.value.has_value())to_json(config["value"],g.value.value());
     }
+
+    ~edit_arch(){}
+    edit_arch():value(){type=labels::NOP;}
+    edit_arch(const edit_arch& cp){type=cp.type;value=cp.value;}
+    edit_arch& operator=(const edit_arch& cp){type=cp.type;value=cp.value;return *this;}
 };
 
 
@@ -216,14 +226,14 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
 
         for(auto j:eg.pieces[1]){
             if(std::get<2>(j)->value.type==earch::labels::LOAD_ST){
-                std::get<1>(j)->value.var=std::max(w_node(std::get<0>(j))->value,std::get<1>(j)->value.var);
+                *(std::get<1>(j)->value.var)=std::max(w_node(std::get<0>(j))->value,*(std::get<1>(j)->value.var));
             }
             else throw StringException("Graph state is broken.");
         }
 
         for(auto j:eg.pieces[2]){
             if(std::get<2>(j)->value.type==earch::labels::STORE_ST){
-                w_node(std::get<1>(j))->value=std::get<0>(j)->value.var;
+                w_node(std::get<1>(j))->value=*(std::get<0>(j)->value.var);
             }
             else if(std::get<2>(j)->value.type==earch::labels::ARCH_SET){
                 if(std::get<2>(j)->value.value.has_value())target.set_arch(w_node(std::get<0>(j)),w_node(std::get<1>(j)),std::get<2>(j)->value.value.value());

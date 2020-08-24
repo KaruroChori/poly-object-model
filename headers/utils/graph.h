@@ -49,11 +49,21 @@ struct graph{
             set<node*>                          inv_links;
 
             value_t                             value;
+
+            ~node(){}
+            node():value(){}
+            //node(const node& cp){value=cp.value;}
+            //node& operator=(const node& cp){value=cp.value;return *this;}
         };
 
         struct arch{
             typedef arch_base value_t;
             value_t                             value;
+
+            ~arch(){}
+            arch():value(){}
+            //arch(const arch& cp){value=cp.value;}
+            //arch& operator=(const arch& cp){value=cp.value;return *this;}
         };
 
     protected:
@@ -99,7 +109,7 @@ struct graph{
                         typename node::value_t val;
                         from_json(j,val);
 
-                        node* tmp=g.add_node(val);
+                        node* tmp=(node*)g.add_node(val);
                         mnodes.insert({i,tmp});
                     }
                 }
@@ -112,7 +122,7 @@ struct graph{
                     for(auto& i:*it){
                         if(!i.is_array() or i.size()!=3)throw StringException("JSONSyntaxError");
                         arch_base tmp;
-                        from_json(i[2],tmp.value);
+                        from_json(i[2],tmp);
                         g.set_arch(mnodes[i[0]],mnodes[i[1]],tmp);
                     }
                 }
