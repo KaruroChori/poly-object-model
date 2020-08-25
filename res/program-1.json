@@ -1,0 +1,28 @@
+{
+    "nodes":{
+        "1":{
+            "type":"new"
+        },
+        "2":{
+            "type":"new"
+        },
+        "3":{
+            "type":"new"
+        },
+        "4":{
+            "type":"new"
+        },
+        "v":{
+            "type":"var",
+            "value":"5"
+        }
+    },
+    "arches":[
+        ["1","2",{"type":"arch.set","value":"hello"}],
+        ["1","3",{"type":"arch.set","value":"hello"}],
+        ["1","4",{"type":"arch.set","value":"hello"}],
+        ["2","3",{"type":"arch.set","value":"hello"}],
+        ["1","1",{"type":"arch.set","value":{"op":"nano"}}],
+        ["v","1",{"type":"sto.st"}]
+    ]
+}

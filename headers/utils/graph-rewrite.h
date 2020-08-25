@@ -38,8 +38,14 @@ using namespace nlohmann;
 
 */
 
+namespace std{
+    void from_json(const nlohmann::json& src, nlohmann::json& dst){dst=src;}
+    void to_json(nlohmann::json& src, const nlohmann::json& dst){src=dst;}
+}
+
 namespace smile{
 namespace utils{
+
 
 template<typename T>
 std::string to_string_enum(typename T::labels o){
@@ -83,12 +89,12 @@ struct edit_node{
     friend void from_json(const nlohmann::json& config, edit_node& g){
         {
             auto it=config.find("type");
-            if(it==config.end() or !it->is_string())throw StringException("JSONSyntaxError");
-            g.type=to_string_enum<edit_node>(*it);
+            if(it==config.end() or !it->is_string())throw StringException("JSONSyntaxError: no type for edit node.");
+            g.type=from_string_enum<edit_node>(*it);
         }
-        {
+        if(g.type!=labels::NEW){
             auto it=config.find("value");
-            if(it==config.end() or !it->is_string())throw StringException("JSONSyntaxError");
+            if(it==config.end() or !it->is_string())throw StringException("JSONSyntaxError: no value for edit node.");
 
                  if(g.type==labels::ABSOLUTE)g.absolute=(void*)(uint64_t)(*it);
             else if(g.type==labels::LOCAL)g.local=(*it);
@@ -128,7 +134,7 @@ struct edit_arch{
 
     constexpr inline static const char* strings[] = {
         "nop",
-        "ld.s.cp",
+        "ld.st",
         "sto.st","arch.set","arch.del",
         "ld.con",
         "sto.con",
@@ -150,11 +156,13 @@ struct edit_arch{
         {
             auto it=config.find("type");
             if(it==config.end() or !it->is_string())throw StringException("JSONSyntaxError");
-            g.type=to_string_enum<edit_arch>(*it);
+            g.type=from_string_enum<edit_arch>(*it);
         }
         {
+            T value;
             auto it=config.find("value");
-            if(it!=config.end())from_json(*it,g.value);
+            if(it!=config.end())from_json(*it,value);
+            g.value=value;
         }       
     }
 
@@ -203,7 +211,7 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
 
     template<typename T>
     inline T& apply_on(T& target, const std::function<void*(items_t)>& pi) const{
-        auto eg=*this;
+        auto& eg=*this;
 
         set<typename T::node*> tmp_nodes;
 
@@ -211,6 +219,7 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
 
         auto w_node = [&](node* ptr)->typename T::node*{
             if(ptr->value.type==enode::labels::ABSOLUTE)return (typename T::node*)ptr->value.absolute;
+            else if(ptr->value.type==enode::labels::NEW)return (typename T::node*)ptr->value.new_node;
             else if(ptr->value.type==enode::labels::LOCAL)return (typename T::node*)target.resolve_node(ptr->value.local);
             else{
                 throw StringException("Wrong addressing method");
@@ -218,20 +227,20 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
         };
 
         //Generate the new nodes which are not there yet.
-        for(auto i:eg.nodes){
+        for(auto& i:eg.nodes){
             if(i->value.type==enode::labels::NEW){
                 i->value.new_node=(void*)target.add_node({});
             }
         }
 
-        for(auto j:eg.pieces[1]){
+        for(auto& j:eg.pieces[1]){
             if(std::get<2>(j)->value.type==earch::labels::LOAD_ST){
                 *(std::get<1>(j)->value.var)=std::max(w_node(std::get<0>(j))->value,*(std::get<1>(j)->value.var));
             }
             else throw StringException("Graph state is broken.");
         }
 
-        for(auto j:eg.pieces[2]){
+        for(auto& j:eg.pieces[2]){
             if(std::get<2>(j)->value.type==earch::labels::STORE_ST){
                 w_node(std::get<1>(j))->value=*(std::get<0>(j)->value.var);
             }
@@ -244,9 +253,9 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
             }
             else throw StringException("Graph state is broken.");            
         }
-        for(auto j:eg.pieces[3]){
+        for(auto& j:eg.pieces[3]){
             if(std::get<2>(j)->value.type==earch::labels::LOAD_CON){
-                auto t=target.tmp_node({});
+                auto* t=target.tmp_node({});
                 std::get<1>(j)->value.var_con=t;
                 tmp_nodes.insert((typename T::node*)t);
                 //Copy connectivity here.
@@ -255,21 +264,21 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
             else throw StringException("Graph state is broken.");
         }
 
-        for(auto j:eg.pieces[4]){
+        for(auto& j:eg.pieces[4]){
             if(std::get<2>(j)->value.type==earch::labels::STORE_CON){
                 //Copy connectivity from here.
                 target.cpy_conn(std::get<0>(j)->value.var_con,w_node(std::get<1>(j)));
             }
             else{
-                for(auto i:tmp_nodes)delete i;
+                for(auto& i:tmp_nodes)delete i;
                 throw StringException("Graph state is broken.");
             }
         }
 
         //Clean up temporary nodes :)
-        for(auto i:tmp_nodes)delete i;
+        for(auto& i:tmp_nodes)delete i;
 
-        for(auto j:eg.pieces[5]){
+        for(auto& j:eg.pieces[5]){
             if(std::get<2>(j)->value.type==earch::labels::FORGET){
                 target.rem_node(w_node(std::get<0>(j)));
             }
@@ -310,8 +319,8 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
         static bool is_legal(typename earch::labels mnemonic, typename enode::labels op1, typename enode::labels op2){
             if(mnemonic == decltype(mnemonic)::LOAD_CON  &&  enode::is_true_node(op1) && op2==decltype(op2)::VAR_CON)return true;
             else if(mnemonic == decltype(mnemonic)::LOAD_ST  &&  enode::is_true_node(op1) && op2==decltype(op2)::VAR)return true;
-            else if(mnemonic == decltype(mnemonic)::STORE_CON && op2==decltype(op1)::VAR_CON && enode::is_true_node(op2))return true;
-            else if(mnemonic == decltype(mnemonic)::STORE_ST && op2==decltype(op1)::VAR && enode::is_true_node(op2))return true;
+            else if(mnemonic == decltype(mnemonic)::STORE_CON && op1==decltype(op1)::VAR_CON && enode::is_true_node(op2))return true;
+            else if(mnemonic == decltype(mnemonic)::STORE_ST && op1==decltype(op1)::VAR && enode::is_true_node(op2))return true;
             else if((mnemonic == decltype(mnemonic)::ARCH_DEL or mnemonic == decltype(mnemonic)::ARCH_SET) && enode::is_true_node(op1) && enode::is_true_node(op2))return true;
             return false;
         }
@@ -320,13 +329,10 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
             node* nn=(node*)n;
             node* mm=(node*)m;
 
-            if(nn==mm && !is_legal(v.type,nn->value.type)){
+            if(!is_legal(v.type,nn->value.type,mm->value.type) && !(nn==mm && is_legal(v.type,nn->value.type))){
                 throw StringException("Illegal graph instruction.");
             }
-            else if(!is_legal(v.type,nn->value.type,mm->value.type)){
-                throw StringException("Illegal graph instruction.");
-            }
-
+            
             parent::set_arch(n,m,v);
         }
 
