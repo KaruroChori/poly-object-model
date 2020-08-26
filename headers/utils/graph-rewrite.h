@@ -94,7 +94,7 @@ struct edit_node{
         }
         if(g.type!=labels::NEW){
             auto it=config.find("value");
-            if(it==config.end() or !it->is_string())throw StringException("JSONSyntaxError: no value for edit node.");
+            if(it==config.end())throw StringException("JSONSyntaxError: no value for edit node.");
 
                  if(g.type==labels::ABSOLUTE)g.absolute=(void*)(uint64_t)(*it);
             else if(g.type==labels::LOCAL)g.local=(*it);

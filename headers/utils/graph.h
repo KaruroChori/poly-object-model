@@ -13,6 +13,7 @@ namespace smile{
 namespace utils{
 
 typedef uint64_t items_t;
+typedef uint64_t hash_t;
 
 template<typename A, uint B>
 using array=std::array<A,B>;
@@ -83,7 +84,10 @@ struct graph{
 
     public:
 
-        inline void* resolve_node(items_t i){return nodes.inv().at(i);}
+        inline void* resolve_node(items_t i) const{return nodes.at_inv(i);}
+
+        std::function<node*(items_t)> normalize() const;
+        hash_t hash(const std::function<node*(items_t)>&) const;
 
         ~graph(){
             for(auto& i:nodes){
@@ -217,8 +221,33 @@ void graph<N,A>::rem_arch(void* n, void* m){
 }
 
 template<typename N, typename A>
-void graph<N,A>::cpy_conn(void* src, void* dst){
+void graph<N,A>::cpy_conn(void* vsrc, void* vdst){
     if(!editable)throw StringException("Not editable graph");
+    node *src=(node*)vsrc, *dst=(node*)vdst;
+    for(auto& [i,j]:src->links){
+        if(dst->links.find(i)!=dst->links.end()){throw StringException("Resolution model not provided. Collision among arches.");}
+        set_arch(dst,i,j.value);
+    }
+    for(auto& i:src->inv_links){
+        if(i==src){/*Avoid self-loops as they have been already represented on the previous step*/}
+        else{
+            if(dst->inv_links.find(i)!=dst->inv_links.end()){throw StringException("Resolution model not provided. Collision among inverse arches.");}
+            set_arch(i,dst,src->links.at(dst).value);
+        }
+    }
+
+}
+
+template<typename N, typename A>
+std::function<typename graph<N,A>::node*(items_t)> graph<N,A>::normalize() const{
+    //TODO: Placeholder
+    return [=](items_t i)->node*{return (node*)resolve_node(i);};
+}
+
+template<typename N, typename A>
+hash_t graph<N,A>::hash(const std::function<node*(items_t)>&) const{
+    //TODO: placeholder
+    return 0;
 }
 
 }

@@ -96,6 +96,7 @@ struct alias_set : protected alias_map<Key,Scalar,Cmp>{
 	using parent::size;
 
         using parent::inv;
+	using parent::at_inv;
 	inline void clear(){parent::clear();next_id=0;}
 	using parent::at;
 

@@ -1,0 +1,14 @@
+{
+    "nodes":{
+        "1":{
+            "type":"new"
+        },
+        "2":{
+            "type":"local",
+            "value":0
+        }
+    },
+    "arches":[
+        ["1","2",{"type":"arch.set","value":"pi"}]
+    ]
+}
