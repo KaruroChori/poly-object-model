@@ -4,10 +4,29 @@
 #include <set>
 #include <map>
 #include <functional>
+#include <algorithm>
 
 #include <utils/alias-set.h>
 #include <utils/string-exception.h>
 
+/*PUT THIS IN ROTATE*/
+#include <stdint.h>   // for uint32_t
+#include <limits.h>   // for CHAR_BIT
+#include <assert.h>
+
+template<typename T>
+inline T rotl (T n, unsigned int c){
+  const unsigned int mask = (CHAR_BIT*sizeof(n) - 1);  // assumes width is a power of 2.
+  c &= mask;
+  return (n<<c) | (n>>( (-c)&mask ));
+}
+
+template<typename T>
+inline T rotr (T n, unsigned int c){
+  const unsigned int mask = (CHAR_BIT*sizeof(n) - 1);
+  c &= mask;
+  return (n>>c) | (n<<( (-c)&mask ));
+}
 
 namespace smile{
 namespace utils{
@@ -53,8 +72,9 @@ struct graph{
 
             ~node(){}
             node():value(){}
-            //node(const node& cp){value=cp.value;}
-            //node& operator=(const node& cp){value=cp.value;return *this;}
+
+            friend bool operator<(const node& l, const node& r){return l.value<r.value;}
+            hash_t hash() const{return std::hash<value_t>(value);}   //TODO:continue
         };
 
         struct arch{
@@ -63,8 +83,9 @@ struct graph{
 
             ~arch(){}
             arch():value(){}
-            //arch(const arch& cp){value=cp.value;}
-            //arch& operator=(const arch& cp){value=cp.value;return *this;}
+
+            friend bool operator<(const arch& l, const arch& r){return l.value<r.value;}
+            hash_t hash()const {return std::hash<value_t>(value);}
         };
 
     protected:
@@ -86,8 +107,8 @@ struct graph{
 
         inline void* resolve_node(items_t i) const{return nodes.at_inv(i);}
 
-        std::function<node*(items_t)> normalize() const;
-        hash_t hash(const std::function<node*(items_t)>&) const;
+        map<node*,items_t> normalize() const;
+        hash_t hash(const map<node*,items_t>&) const;
 
         ~graph(){
             for(auto& i:nodes){
@@ -239,14 +260,172 @@ void graph<N,A>::cpy_conn(void* vsrc, void* vdst){
 }
 
 template<typename N, typename A>
-std::function<typename graph<N,A>::node*(items_t)> graph<N,A>::normalize() const{
-    //TODO: Placeholder
-    return [=](items_t i)->node*{return (node*)resolve_node(i);};
+map<typename graph<N,A>::node*,items_t> graph<N,A>::normalize() const{
+    //TODO: Rewrite this condition to be more consistnet
+    if(nodes.size()<=1)throw "Stupid case";
+
+    std::vector<node*> ord_seq;
+    std::map<node*,items_t> ord_seq_inv;
+
+    auto cmp_classes=[](const std::pair<items_t,items_t>& a, const std::pair<items_t,items_t>& b)->bool{
+        if(a.first<b.first)return true;
+        else if(a.first>b.first)return false;
+        if(a.second<b.second)return true;
+        else if(a.second>b.second)return false;
+        return false;
+    };
+
+    std::set<std::pair<items_t,items_t>,decltype(cmp_classes)> classes(cmp_classes);
+
+    //Compare two nodes based on their class
+    auto cmp_seq=[&](items_t a, items_t b)->bool{
+        if(a==b)return true;
+        //TODO replace 1000 with big number.
+        auto ia=classes.lower_bound({a,100000});
+        auto ib=classes.lower_bound({b,100000});
+        //They are in unique classes, and so they are not represented here anymore
+        if(a<ia->first+ia->second && b<ib->first+ib->second)return true;
+        return false;
+    };
+
+    /*
+    //Full node comparison
+    auto cmp_nodes=[&](node* a, node* b)->uint{
+        if(*a<*b)return -1;
+        else if(*b<*a)return 1;
+        else{
+            if(a->links.size()<b->links.size())return -1;
+            if(a->links.size()>b->links.size())return 1;
+
+            if(a->inv_links.size()<b->inv_links.size())return -1;
+            if(a->inv_links.size()>b->inv_links.size())return 1;
+
+            for(auto i=a->links.begin(),j=b->links.begin();i!=a->links.end();i++,j++){
+                if(i->second<j->second)return -1;
+                if(j->second<i->second)return 1;
+                auto t=cmp_seq(ord_seq_inv.at(i->first),ord_seq_inv.at(j->first));
+                if(t!=0)return t;
+            }
+
+            for(auto i=a->inv_links.begin(),j=b->inv_links.begin();i!=a->inv_links.end();i++,j++){
+                auto t=cmp_seq(ord_seq_inv.at(i),ord_seq_inv.at(j));
+                if(t!=0)return t;
+            }
+
+            return 0;
+        }
+    };
+    */
+
+    //First node comparison
+    auto cmp_nodes_1=[&](node* a, node* b)->uint{
+        if(*a<*b)return -1;
+        else if(*b<*a)return 1;
+        else{
+            if(a->links.size()<b->links.size())return -1;
+            if(a->links.size()>b->links.size())return 1;
+
+            if(a->inv_links.size()<b->inv_links.size())return -1;
+            if(a->inv_links.size()>b->inv_links.size())return 1;
+
+            for(auto i=a->links.begin(),j=b->links.begin();i!=a->links.end();i++,j++){
+                if(i->second<j->second)return -1;
+                if(j->second<i->second)return 1;
+            }
+
+            //for(auto i=a->inv_links.begin(),j=b->inv_links.begin();i!=a->inv_links.end();i++,j++){
+            //}
+
+            return 0;
+        }
+    };
+
+    //Partial node comparison, assuming the other tests were already performed.
+    auto cmp_nodes_2=[&](node* a, node* b)->uint{
+        for(auto i=a->links.begin(),j=b->links.begin();i!=a->links.end();i++,j++){
+            auto t=cmp_seq(ord_seq_inv.at(i->first),ord_seq_inv.at(j->first));
+            if(t!=0)return t;
+        }
+
+        for(auto i=a->inv_links.begin(),j=b->inv_links.begin();i!=a->inv_links.end();i++,j++){
+            auto t=cmp_seq(ord_seq_inv.at(*i),ord_seq_inv.at(*j));
+            if(t!=0)return t;
+        }
+        return 0;
+    };
+
+    ord_seq.reserve(nodes.size());
+    {
+        items_t c=0;
+        for(auto i:nodes){ord_seq.push_back(i);ord_seq_inv.insert({i,c});c++;}
+    }
+    classes.insert({0,nodes.size()});
+
+    for(;classes.size()!=0;){
+        bool delendo=false;
+        for(auto tmp_i=classes.begin();tmp_i!=classes.end();tmp_i++){
+            auto tmp=*tmp_i;
+            //IMPLEMENT THE PROPER SORT HERE!
+            std::sort(ord_seq.begin()+tmp.first,ord_seq.begin()+tmp.first+tmp.second);
+
+            items_t cases=0;
+            items_t last_change=tmp.first;
+            for(auto i=tmp.first;i<tmp.first+tmp.second-1;i++){
+                auto a=ord_seq.begin()+i;
+                auto b=a+1;
+                //They are different
+                if((*a<*b)==true){
+                    if(i+1-last_change==1){
+                        //This class is unitary, there is no reason to actually generate it.
+                    }
+                    else classes.insert({last_change,i+1-last_change});
+                    last_change=i+1;
+                    cases++;
+                }
+            }
+            if(cases!=0){
+                //Yay I got a reduction event. Remove the base and add the last which is surely missing.
+                classes.erase(tmp);
+                classes.insert({last_change,tmp.first+tmp.second-last_change});
+                delendo=true;
+                break;
+            }
+            else{
+                //No split was possible, go to the next one please.
+            }
+
+        }
+
+        if(delendo==true){
+            //Ok go on to the next stage plz.
+            continue;
+        }
+        else{
+            //I need to force split something
+            auto tmp=*classes.begin();
+            classes.erase(classes.begin());
+            classes.insert({tmp.first,1});
+            classes.insert({tmp.first+1,tmp.second-1});
+        }
+    }
+
+    std::map<node*,items_t> ret_map;
+    {
+        items_t c=0;
+        for(auto i:ord_seq){ret_map[i]=c;c++;}
+    }
+
+    return ret_map;
 }
 
 template<typename N, typename A>
-hash_t graph<N,A>::hash(const std::function<node*(items_t)>&) const{
-    //TODO: placeholder
+hash_t graph<N,A>::hash(const map<node*,items_t>& m) const{
+    hash_t tmp=0;
+    uint k=0;
+    for(auto [i,j]:m){
+        tmp|=rotl<hash_t>(i->hash(),k%(sizeof(hash_t)*8)*(sizeof(hash_t)*8/m.size()+1));
+        k++;
+    }
     return 0;
 }
 
