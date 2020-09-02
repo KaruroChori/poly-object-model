@@ -4,6 +4,8 @@
 #endif
 
 struct domain{
+    FRIENDS_LIST
+
     public:
          domain();
         ~domain();

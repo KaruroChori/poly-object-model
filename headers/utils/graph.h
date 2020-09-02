@@ -365,7 +365,7 @@ map<typename graph<N,A>::node*,items_t> graph<N,A>::normalize() const{
         bool delendo=false;
         for(auto tmp_i=classes.begin();tmp_i!=classes.end();tmp_i++){
             auto tmp=*tmp_i;
-            //IMPLEMENT THE PROPER SORT HERE!
+            //TODO: IMPLEMENT THE PROPER SORT HERE!
             std::sort(ord_seq.begin()+tmp.first,ord_seq.begin()+tmp.first+tmp.second);
 
             items_t cases=0;

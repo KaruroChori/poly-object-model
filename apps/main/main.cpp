@@ -51,7 +51,7 @@ int main(int argc, const char* argv[]){
         program.apply_on(graph);
         std::cout<<graph;
 
-        graph.hash(graph.normalize());
+        //graph.hash(graph.normalize());
 
     }
     catch(std::exception& e){

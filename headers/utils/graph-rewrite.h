@@ -12,32 +12,6 @@
 //using namespace std;
 using namespace nlohmann;
 
-/*
-# SUPPORTED FUNCTIONS
-
-## Stage 0
-* Allocation
-* Load status (copy)
-* Load status (swap)
-
-## Stage 1
-* Store status
-* Arch editing
-* Arch deletion
-
-## Stage 2
-* Load connectivity (copy)
-* Load connectivity (move)
-
-## Stage 3
-* Store connectivity
-
-## Stage 4
-* Forget
-* Delete
-
-*/
-
 namespace std{
     void from_json(const nlohmann::json& src, nlohmann::json& dst){dst=src;}
     void to_json(nlohmann::json& src, const nlohmann::json& dst){src=dst;}
