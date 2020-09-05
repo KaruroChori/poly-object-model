@@ -13,6 +13,9 @@ struct soup{
             native_arch_t       value;
         };
 
+        friend void   to_json(json& j, const soup& p);
+        friend void from_json(const json& j, soup& p);
+
          soup(domain& d);
         ~soup();
 

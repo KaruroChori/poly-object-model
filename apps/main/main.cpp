@@ -2,6 +2,7 @@
 #include <fstream>
 #include <poly-soups.h>
 #include <utils/graph-rewrite.h>
+#include <utils/abstract-graph.h>
 
 int main(int argc, const char* argv[]){
     bool normalize=false;
@@ -57,5 +58,8 @@ int main(int argc, const char* argv[]){
     catch(std::exception& e){
         std::cout<<e.what();
     }
+
+    //Test of the poly library.
+    poly::domain n1;
     return 0;
 }
