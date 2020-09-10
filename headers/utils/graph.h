@@ -59,9 +59,10 @@ struct graph{
 
     friend struct edit_graph<NODE,ARCH>;
 
-    protected:
+    public:
         struct node;
         struct arch;
+        struct normal_t;
 
         struct node{
             typedef node_base value_t;
@@ -75,6 +76,7 @@ struct graph{
 
             friend bool operator<(const node& l, const node& r){return l.value<r.value;}
             hash_t hash() const{return std::hash<value_t>(value);}   //TODO:continue
+            inline void for_each(const std::function<void(const node&,const arch&)>& fn) const{for(auto [i,j]:links)fn(*i,j);}
         };
 
         struct arch{
@@ -86,6 +88,12 @@ struct graph{
 
             friend bool operator<(const arch& l, const arch& r){return l.value<r.value;}
             hash_t hash()const {return std::hash<value_t>(value);}
+        };
+
+        struct normal_t{
+            map<node*,items_t> value;
+
+            //TODO: json
         };
 
     protected:
@@ -103,12 +111,16 @@ struct graph{
         mapid<node*>                            nodes;
         bool                                    editable=true;
 
+        std::optional<normal_t>                 normal;
+        std::optional<hash_t>                   hash_value;
+
     public:
+        inline void for_each(const std::function<void(const node&)>& fn) const{for(auto i:nodes)fn(*i);}
 
         inline void* resolve_node(items_t i) const{return nodes.at_inv(i);}
 
-        map<node*,items_t> normalize() const;
-        hash_t hash(const map<node*,items_t>&) const;
+        normal_t normalize() const;
+        hash_t hash(const normal_t&) const;
 
         ~graph(){
             for(auto& i:nodes){
@@ -260,7 +272,7 @@ void graph<N,A>::cpy_conn(void* vsrc, void* vdst){
 }
 
 template<typename N, typename A>
-map<typename graph<N,A>::node*,items_t> graph<N,A>::normalize() const{
+typename graph<N,A>::normal_t graph<N,A>::normalize() const{
     //TODO: Rewrite this condition to be more consistnet
     if(nodes.size()<=1)throw "Stupid case";
 
@@ -419,7 +431,7 @@ map<typename graph<N,A>::node*,items_t> graph<N,A>::normalize() const{
 }
 
 template<typename N, typename A>
-hash_t graph<N,A>::hash(const map<node*,items_t>& m) const{
+hash_t graph<N,A>::hash(const normal_t& m) const{
     hash_t tmp=0;
     uint k=0;
     for(auto [i,j]:m){

@@ -20,6 +20,8 @@ namespace std{
 namespace smile{
 namespace utils{
 
+template<typename A, typename B>
+edit_graph<A,B> to_edit_graph(const graph<A,B>& r);
 
 template<typename T>
 std::string to_string_enum(typename T::labels o){
@@ -160,6 +162,8 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
     using parent= graph<edit_node<NODE>,edit_arch<ARCH>>;
     using node = typename parent::node;
     using arch = typename parent::arch;
+
+    friend edit_graph to_edit_graph<NODE,ARCH>(const graph<NODE,ARCH>& r);
 
     constexpr inline static uint LAYERS_N = 6;
 
@@ -311,6 +315,33 @@ struct edit_graph:public graph<edit_node<NODE>,edit_arch<ARCH>>{
         }
 
 };
+
+//Generate the edit graph from the original structure.
+template<typename A, typename B>
+edit_graph<A,B> to_edit_graph(const graph<A,B>& r){
+    edit_graph<A,B> tmp;
+    std::map<const typename graph<A,B>::node*,typename edit_graph<A,B>::enode*> map_nodes;
+    //Nodes
+    r.for_each([&](auto& i){
+        //typename edit_graph<A,B>::enode t{.type=typename edit_graph<A,B>::enode::labels::NEW};
+        auto n=(typename edit_graph<A,B>::enode*)tmp.add_node({});
+        n->type=edit_graph<A,B>::enode::labels::NEW;
+
+        map_nodes.insert({&i,n});
+    });
+
+    //Add arches
+    r.for_each([&](auto& i){
+        i.for_each([&](auto& j, auto& v){
+            typename edit_graph<A,B>::earch q;
+            q.type=edit_graph<A,B>::earch::labels::ARCH_SET;
+            q.value=v.value;
+            tmp.set_arch(map_nodes.at(&i),map_nodes.at(&j),q);
+        });
+    });
+
+    return tmp;
+}
 
 }
 }

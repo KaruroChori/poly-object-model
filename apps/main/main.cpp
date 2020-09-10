@@ -45,6 +45,8 @@ int main(int argc, const char* argv[]){
         smile::utils::graph<nlohmann::json,nlohmann::json> graph;
         smile::utils::edit_graph<nlohmann::json,nlohmann::json> program;
 
+        smile::utils::abstract_graph<nlohmann::json,nlohmann::json> a_graph(graph);
+
         smile::utils::from_json(graph_json,graph);
         smile::utils::from_json(program_json,program);
 
