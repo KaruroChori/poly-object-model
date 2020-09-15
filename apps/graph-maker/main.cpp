@@ -2,6 +2,7 @@
 #include <fstream>
 #include <poly-soups.h>
 #include <utils/graph-rewrite.h>
+#include <utils/eq-pool.h>
 #include <regex>
 
 typedef uint64_t hash_t;
@@ -75,19 +76,35 @@ struct eqv_decompose{
             }
         }
 
+        void uniqueness(bool u){
+            //The same as now: return
+            if(u==unique_ka)return;
+            if(unique_ka){
+                //unique -> not unique
+            }
+            else{
+                //not unique -> unique
+            }
+        }
+
         next_t*                  select_and_edit(){
             //if(edit_ka==true)return this;
         }
 
         //next_t*                         sample() const;
         next_t*                         add(){
-            auto tmp=next_t::make_new();
+            auto tmp=next_t::make_new(this);
             tmp->edit_ka=true;
             editable.insert(tmp);
             return tmp;
         }
 
         void                            rem(){
+        }
+
+        inline void commit_recursive(){
+            for(auto& [i,j]:children)for(auto z:j)z->commit_recursive();
+            for(auto z:editable)z->commit();
         }
 
         void                            commit(){
@@ -103,6 +120,34 @@ struct eqv_decompose{
             else{
                 parent->children.insert({{},this});
             }
+        }
+
+        void for_each(const std::function<void(typename T::naked_t,items_t)>& fn){
+            if(edit_ka)throw "EditableContainer";
+            for(auto& [i,j]:children){
+                for(auto z:i){
+                    z->for_each(fn);
+                }
+            }
+        }
+
+        void for_each_restrict(const std::function<void(typename T::naked_t,items_t)>& fn, uint k=0){
+            if(edit_ka)throw "EditableContainer";
+            if(k==0){
+                //I should not split anymore :)
+                for(auto& [i,j]:children){
+                    for(auto z:i){
+                        fn(/**/ z->count());
+                    }
+                }  
+            }
+            else{
+                for(auto& [i,j]:children){
+                    for(auto z:i){
+                        z->for_each(fn,k-1);
+                    }
+                } 
+            }          
         }
 
         ~eqv_decompose(){
@@ -133,6 +178,14 @@ struct eqv_decompose<LINEAR_SEARCH,T,0,PARENT>{
 
         items_t                         count() const;
         std::optional<hash_t>           hash() const;
+
+        void for_each(const std::function<void(typename T::naked_t,items_t)>& fn){
+            fn(/**/ count());
+        }
+
+        void for_each_restrict(const std::function<void(typename T::naked_t,items_t)>& fn, uint k=0){
+            fn(/**/ count());
+        }
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -202,17 +255,27 @@ auto& get(T& base){return T::template get<N>(base);}
 template<uint N,typename T>
 const auto& get(const T& base){return T::template get_const<N>(base);}
 
+
+///////////////
+// AUTOCLASS //
+///////////////
+
 using namespace smile::utils;
 using namespace std;
 using namespace nlohmann;
 
 int main(int argc, const char* argv[]){
-    decompose<test_t,3> hello;
+    {
+    eq_pool<int> c1(1), c2(2), c3(4), c4(5);
+    for(uint i=0;i<100;i++)eq_pool<int> b(c1),c(c2),d(c3);
+    std::cout<<c1+5;
+    }
+    /*decompose<test_t,3> hello;
     hello.self.a;
     hello.next.self.b="ciao";
     get<0>(hello);
     get<1>(hello);
-    get<2>(hello);
+    get<2>(hello);*/
     return 0;
     
     std::map<string,graph<string,string>> graphs;
