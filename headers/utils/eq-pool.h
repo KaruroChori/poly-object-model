@@ -80,9 +80,10 @@ struct eq_pool{
     }
 
     eq_pool& split(){
-        if(in_use.at(class_id).size()==1){}
+        auto& old=in_use.at(class_id);
+        if(old.size()==1){}
         else{
-            in_use.erase(class_id);
+            old.erase(this);
 
             auto max=pool.at(class_id).max_copies;
             next_id++;
@@ -98,8 +99,14 @@ struct eq_pool{
     inline operator T&(){split();return *data;}
     inline operator const T&() const{return *data;}
 
-    void _debug(){
-        std::cout<<"Not yet implemented.\n";
+    static void debug(){
+        for(auto& [i,j]:pool){
+            std::cout<<"["<<i<<"]\n";
+            auto& t=*(in_use.at(i).begin());
+            t->data;
+            std::cout<<*(t->data)<<" ";
+            std::cout<<in_use.at(i).size()<<"+("<<j.items.size()<<")\n";
+        }
     }
 
     void _max_copies(items_t t){

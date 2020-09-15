@@ -266,9 +266,10 @@ using namespace nlohmann;
 
 int main(int argc, const char* argv[]){
     {
-    eq_pool<int> c1(1), c2(2), c3(4), c4(5);
+    eq_pool<int> c1(1), c2(2), c3(4), c4(5), c5(c1);
     for(uint i=0;i<100;i++)eq_pool<int> b(c1),c(c2),d(c3);
-    std::cout<<c1+5;
+    std::cout<<(c1+=5)<<"\n";
+    eq_pool<int>::debug();
     }
     /*decompose<test_t,3> hello;
     hello.self.a;
